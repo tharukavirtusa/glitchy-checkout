@@ -50,6 +50,9 @@ const debugLog = document.getElementById('debug-log');
 // Initialize cart object (comment this out to trigger Bug 2)
 // cart = { items: [], total: 0 };
 
+// Status message queue to prevent rapid overwrites
+let statusMessageTimeout = null;
+
 // Debug logging function
 function log(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
@@ -69,10 +72,22 @@ function log(message, type = 'info') {
     }
 }
 
-// Show status message
-function showStatus(message, type = 'info') {
+// Enhanced status message with auto-hide and better formatting
+function showStatus(message, type = 'info', duration = 4000) {
+    // Clear any pending status timeout
+    if (statusMessageTimeout) {
+        clearTimeout(statusMessageTimeout);
+    }
+
     statusMessage.textContent = message;
     statusMessage.className = `status-message status-${type}`;
+
+    // Auto-hide after duration (except for errors which persist longer)
+    const displayDuration = type === 'error' ? 6000 : duration;
+    statusMessageTimeout = setTimeout(() => {
+        statusMessage.textContent = '';
+        statusMessage.className = 'status-message';
+    }, displayDuration);
 }
 
 function formatPrice(value) {
@@ -126,7 +141,7 @@ function selectProduct(productId) {
     selectedProductId = productId;
     renderCatalog();
     log(`Selected product: ${product.name} (${formatPrice(product.price)})`);
-    showStatus(`Selected ${product.name} — ${formatPrice(product.price)}`, 'info');
+    showStatus(`✅ Selected: ${product.name} — ${formatPrice(product.price)}`, 'info', 3000);
 }
 
 function getSubtotal() {
@@ -218,9 +233,8 @@ async function addToCart() {
         showStatus(`✅ Added ${product.name}! Total items: ${cartCount}`, 'success');
 
     } catch (error) {
-        // Silent failure - user sees nothing useful
         log(`Error adding to cart: ${error.message}`, 'error');
-        showStatus('❌ Failed to add item (Network error)', 'error');
+        showStatus(`⚠️ Cannot add item: Server returned an error. Please try again.`, 'error', 5000);
         console.error('Fetch Error:', error);
 
         // PlayerZero will capture this error
@@ -242,13 +256,13 @@ async function applyDiscount() {
     const code = discountInput.value.trim().toUpperCase();
 
     if (!code) {
-        showStatus('❌ Enter a discount code first', 'error');
-        log('Discount validation skipped: no code entered', 'error');
+        showStatus('⚠️ Please enter a discount code first', 'warning', 3000);
+        log('Discount validation skipped: no code entered', 'info');
         return;
     }
 
     discountBtn.disabled = true;
-    showStatus(`⏳ Validating discount code ${code}...`, 'info');
+    showStatus(`⏳ Validating discount code: ${code}...`, 'info');
     log(`Validating discount code: ${code}`);
 
     const controller = new AbortController();
@@ -279,7 +293,7 @@ async function applyDiscount() {
         appliedDiscount = { code: code, percentOff: data.percentOff };
         updateCartDisplay();
         log(`Discount ${code} applied (${data.percentOff}% off)`, 'success');
-        showStatus(`✅ Discount ${code} applied!`, 'success');
+        showStatus(`✅ Discount code applied! Saving you ${formatPrice(getSubtotal() * data.percentOff / 100)}`, 'success');
 
     } catch (error) {
         const timedOut = error.name === 'AbortError';
@@ -288,7 +302,7 @@ async function applyDiscount() {
             : `Discount service unreachable: ${error.message}`;
 
         log(reason, 'error');
-        showStatus('❌ Could not apply discount code (Service unavailable)', 'error');
+        showStatus(`⚠️ Could not validate discount code. The service is unavailable.`, 'error', 5000);
         console.error('Discount Error:', error);
 
         // PlayerZero will capture this error
@@ -316,8 +330,9 @@ function checkout() {
     try {
         // Bug 2: cart is null, accessing cart.items will throw TypeError
         if (cartCount === 0) {
-            showStatus('❌ Your cart is empty!', 'error');
-            log('Checkout failed: Empty cart', 'error');
+            showStatus('⚠️ Your cart is empty! Add items before checkout.', 'warning', 4000);
+            log('Checkout failed: Empty cart', 'info');
+            checkoutBtn.disabled = false;
             return;
         }
 
@@ -332,14 +347,14 @@ function checkout() {
             cartLines = {};
             appliedDiscount = null;
             updateCartDisplay();
-            showStatus('✅ Checkout successful! Thank you for your purchase.', 'success');
+            showStatus('✅ Checkout successful! Thank you for your purchase.', 'success', 5000);
             log('Checkout completed successfully', 'success');
             checkoutBtn.disabled = false;
         }, 1500);
 
     } catch (error) {
         log(`Checkout error: ${error.message}`, 'error');
-        showStatus(`❌ Checkout failed: ${error.message}`, 'error');
+        showStatus(`⚠️ Checkout failed: ${error.message}. Please refresh and try again.`, 'error', 6000);
         console.error('Checkout Error:', error);
 
         // PlayerZero will capture this error with stack trace
@@ -387,7 +402,7 @@ function initializeApp() {
     log('Ready to demonstrate bugs...', 'info');
     renderCatalog();
     updateCartDisplay();
-    showStatus('👋 Welcome! Pick a product, add it to your cart, and try a discount code.', 'info');
+    showStatus('👋 Welcome! Pick a product and add it to your cart to get started.', 'info', 5000);
 }
 
 // Start the app
