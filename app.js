@@ -390,9 +390,14 @@ function initializeApp() {
     showStatus('👋 Welcome! Pick a product, add it to your cart, and try a discount code.', 'info');
 }
 
-// Start the app
-window.addEventListener('DOMContentLoaded', initializeApp);
-initializeApp();
+// Start the app. This script is loaded at the end of <body>, so the DOM is
+// already parsed; waiting for DOMContentLoaded as well would initialize twice
+// and duplicate every startup log line.
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
 
 // Export for debugging
 window.glitchyCheckout = {
